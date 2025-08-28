@@ -90,6 +90,16 @@ public class Order implements Serializable {
         return payment;
     }
 
+    public Double getTotal(){
+        double sum = 0;
+
+        for(OrderItem x : items){
+            sum += x.getSubTotal();
+        }
+
+        return sum;
+    }
+
     public void setPayment(Payment payment) {
         this.payment = payment;
     }
