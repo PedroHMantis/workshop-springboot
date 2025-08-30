@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel Administrativo</title>
+    <style>
+        body {
+          font-family: Arial, sans-serif;
+          background: #f0f4fa;
+          color: #333;
+          margin: 0;
+          padding: 0;
+        }
+        header {
+          background: #1e88e5;
+          color: white;
+          padding: 1rem;
+          text-align: center;
+          font-size: 1.5rem;
+        }
+        main {
+          max-width: 1000px;
+          margin: 2rem auto;
+          padding: 2rem;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+          margin-top: 0;
+          color: #1565c0;
+        }
+        .actions {
+          margin-bottom: 1.5rem;
+        }
+        button {
+          background: #1e88e5;
+          color: white;
+          border: none;
+          padding: 0.6rem 1rem;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: background 0.2s;
+          margin: 0.2rem;
+        }
+        button:hover {
+          background: #1565c0;
+        }
+        input {
+          padding: 0.6rem;
+          border: 1px solid #ccc;
+          border-radius: 8px;
+          margin: 0.2rem 0.5rem 0.2rem 0;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 1rem;
+        }
+        th, td {
+          padding: 0.75rem;
+          border-bottom: 1px solid #ddd;
+          text-align: left;
+        }
+        th {
+          background: #e3f2fd;
+          color: #1565c0;
+        }
+        .delete-btn {
+          background: #e53935;
+        }
+        .delete-btn:hover {
+          background: #b71c1c;
+        }
+        #output {
+          margin-top: 1rem;
+          font-family: Arial, sans-serif;
+          background: #f7f9fc;
+          padding: 1rem;
+          border-radius: 8px;
+          max-height: 400px;
+          overflow-y: auto;
+        }
+        form {
+          margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+<header>Painel Administrativo</header>
+<main>
+    <h2>Consultar Dados</h2>
+    <div class="actions">
+        <button onclick="fetchData('users')">Listar Usuários</button>
+        <button onclick="fetchData('orders')">Listar Pedidos</button>
+        <button onclick="fetchData('products')">Listar Produtos</button>
+        <button onclick="fetchData('categories')">Listar Categorias</button>
+    </div>
+
+    <h2>Buscar por ID</h2>
+    <div class="actions">
+        <input type="text" id="endpoint" placeholder="users, orders, products...">
+        <input type="number" id="findId" placeholder="ID">
+        <button onclick="fetchById()">Buscar</button>
+    </div>
+
+    <h2>Cadastrar Usuário</h2>
+    <form onsubmit="createUser(event)">
+        <input type="text" id="name" placeholder="Nome" required>
+        <input type="email" id="email" placeholder="Email" required>
+        <input type="text" id="phone" placeholder="Telefone" required>
+        <button type="submit">Cadastrar</button>
+    </form>
+
+    <h2>Deletar Usuário</h2>
+    <div class="actions">
+        <input type="number" id="deleteId" placeholder="ID do usuário">
+        <button class="delete-btn" onclick="deleteUser()">Deletar</button>
+    </div>
+
+    <h2>Resultado</h2>
+    <div id="output">Resultado aparecerá aqui...</div>
+</main>
+
+<script>
+    const API_BASE = "http://localhost:8080/";
+
+    // ========= AÇÕES PRINCIPAIS =========
+    async function fetchData(endpoint) {
+      try {
+        const res = await fetch(API_BASE + endpoint);
+        ensureOk(res);
+        const data = await res.json();
+        renderTable(data);
+      } catch (err) {
+        showError(err);
+      }
+    }
+
+    async function fetchById() {
+      const endpoint = document.getElementById("endpoint").value.trim();
+      const id = document.getElementById("findId").value;
+      if (!endpoint || !id) return alert("Preencha endpoint e ID");
+      try {
+        const res = await fetch(`${API_BASE}${endpoint}/${id}`);
+        ensureOk(res);
+        const data = await res.json();
+        renderTable(data);
+      } catch (err) {
+        showError(err);
+      }
+    }
+
+    async function createUser(event) {
+      event.preventDefault();
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const phone = document.getElementById("phone").value.trim();
+
+      if (!name || !email || !phone) return alert("Preencha todos os campos do usuário.");
+
+      try {
+        const res = await fetch(`${API_BASE}users`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, phone })
+        });
+        ensureOk(res);
+        const newUser = await res.json();
+        renderTable(newUser);
+      } catch (err) {
+        showError(err);
+      }
+    }
+
+    async function deleteUser() {
+      const id = document.getElementById("deleteId").value;
+      if (!id) return alert("Informe um ID de usuário");
+      try {
+        const res = await fetch(`${API_BASE}users/${id}`, { method: "DELETE" });
+        if (res.ok) {
+          document.getElementById("output").innerHTML =
+            `<div class="card" style="background:#f7f9fc;border:1px dashed #d9e2ec;border-radius:10px;padding:.75rem;">Usuário <b>${escapeHtml(
+              id
+            )}</b> deletado com sucesso!</div>`;
+        } else {
+          showError(new Error(`Falha ao deletar (status ${res.status})`));
+        }
+      } catch (err) {
+        showError(err);
+      }
+    }
+
+    // ========= RENDERIZAÇÃO =========
+    function renderTable(data) {
+    if (!data) {
+      document.getElementById("output").innerText = "Sem dados.";
+      return;
+    }
+
+    if (!Array.isArray(data)) {
+      data = [data];
+    }
+
+    const first = data[0] || {};
+    let table = "<table><tr>";
+
+    if (first.client && first.items) {
+      // -------- ORDERS --------
+      table += "<th>ID</th><th>Momento</th><th>Status</th><th>Cliente</th><th>Itens</th><th>Pagamento</th></tr>";
+      data.forEach(order => {
+        table += "<tr>";
+        table += `<td>${order.id}</td>`;
+        table += `<td>${order.moment}</td>`;
+        table += `<td>${order.status || order.orderStatus || "Sem status"}</td>`;
+        table += `<td>${order.client ? order.client.name : ""}</td>`;
+        table += `<td>${order.items ? order.items.map(i => i.name).join(", ") : ""}</td>`;
+        table += `<td>${order.payment ? (order.payment.status || order.payment.state || "Sem pagamento") : ""}</td>`;
+        table += "</tr>";
+      });
+
+    } else if (first.categories) {
+      // -------- PRODUCTS --------
+      table += "<th>ID</th><th>Nome</th><th>Preço</th><th>Categorias</th></tr>";
+      data.forEach(prod => {
+        table += "<tr>";
+        table += `<td>${prod.id}</td>`;
+        table += `<td>${prod.name}</td>`;
+        table += `<td>${prod.price}</td>`;
+        table += `<td>${prod.categories ? prod.categories.map(c => c.name).join(", ") : ""}</td>`;
+        table += "</tr>";
+      });
+
+    } else {
+      // -------- GENÉRICO --------
+      const keys = Object.keys(first);
+      keys.forEach(k => table += `<th>${k}</th>`);
+      table += "</tr>";
+
+      data.forEach(item => {
+        table += "<tr>";
+        keys.forEach(k => {
+          let value = item[k];
+          if (typeof value === "object" && value !== null) {
+            value = JSON.stringify(value);
+          }
+          table += `<td>${value}</td>`;
+        });
+        table += "</tr>";
+      });
+    }
+
+    table += "</table>";
+    document.getElementById("output").innerHTML = table;
+  }
+
+    function renderOrders(orders) {
+      let html = `<table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Momento</th>
+            <th>Status</th>
+            <th>Cliente</th>
+            <th>Itens</th>
+            <th>Pagamento</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      for (const o of orders) {
+        const clientName = o?.client?.name ?? "";
+        // Itens podem vir como [{name}] ou [{product:{name}}]
+        const itemsNames = Array.isArray(o?.items)
+          ? o.items.map(i => i?.name ?? i?.product?.name ?? "").filter(Boolean).join(", ")
+          : "";
+        const paymentStatus = o?.payment?.status ?? "";
+
+        html += `<tr>
+          <td>${safe(o.id)}</td>
+          <td>${safe(o.moment)}</td>
+          <td>${safe(o.status)}</td>
+          <td>${safe(clientName)}</td>
+          <td>${safe(itemsNames)}</td>
+          <td>${safe(paymentStatus)}</td>
+        </tr>`;
+      }
+
+      html += `</tbody></table>`;
+      document.getElementById("output").innerHTML = html;
+    }
+
+    function renderProducts(products) {
+      let html = `<table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nome</th>
+            <th>Preço</th>
+            <th>Categorias</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      for (const p of products) {
+        const catNames = Array.isArray(p?.categories)
+          ? p.categories.map(c => c?.name ?? "").filter(Boolean).join(", ")
+          : "";
+        const price = (typeof p?.price === "number")
+          ? p.price.toFixed(2)
+          : (p?.price ?? "");
+
+        html += `<tr>
+          <td>${safe(p?.id)}</td>
+          <td>${safe(p?.name)}</td>
+          <td>${safe(price)}</td>
+          <td>${safe(catNames)}</td>
+        </tr>`;
+      }
+
+      html += `</tbody></table>`;
+      document.getElementById("output").innerHTML = html;
+    }
+
+    function renderGeneric(rows) {
+      const keys = Object.keys(rows[0] || {});
+      let html = `<table>
+        <thead><tr>${keys.map(k => `<th>${safe(k)}</th>`).join("")}</tr></thead>
+        <tbody>`;
+
+      for (const obj of rows) {
+        html += "<tr>";
+        for (const k of keys) {
+          let v = obj[k];
+          // Pequeno "flatten" para casos comuns
+          if (k === "client" && v) v = v.name ?? v;
+          if (k === "items" && Array.isArray(v)) v = v.map(i => i?.name ?? i?.product?.name ?? "").filter(Boolean).join(", ");
+          if (k === "categories" && Array.isArray(v)) v = v.map(c => c?.name ?? "").filter(Boolean).join(", ");
+          if (k === "payment" && v) v = v.status ?? v;
+
+          if (typeof v === "object" && v !== null) v = JSON.stringify(v);
+          html += `<td>${safe(v)}</td>`;
+        }
+        html += "</tr>";
+      }
+
+      html += `</tbody></table>`;
+      document.getElementById("output").innerHTML = html;
+    }
+
+    // ========= HELPERS =========
+    function ensureOk(res) {
+      if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
+    }
+
+    function showError(err) {
+      document.getElementById("output").innerHTML =
+        `<div class="card" style="background:#fff4f4;border:1px solid #ffd2d2;border-radius:10px;">
+           <b>Erro:</b> ${safe(err.message || err)}
+         </div>`;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+    function safe(v) {
+      if (v === undefined || v === null) return "";
+      return escapeHtml(v);
+    }
+</script>
+</body>
+</html>
