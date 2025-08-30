@@ -13,9 +13,9 @@ public class WebConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                // Permite apenas sua URL de produção
+                // Permite qualquer origem
                 registry.addMapping("/**")
-                        .allowedOrigins("https://workshop-sb-prod.up.railway.app")
+                        .allowedOrigins("*")
                         .allowedMethods("*");
             }
         };
